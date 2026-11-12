@@ -3,55 +3,50 @@
 -- IMPLEMENTASI STORED PROCEDURE & TRIGGER TRANSACTION
 -- ========================================================
 
-CREATE DATABASE IF NOT EXISTS db_retail_uts;
+DROP DATABASE IF EXISTS db_retail_uts;
+CREATE DATABASE db_retail_uts;
 USE db_retail_uts;
 
---
-CREATE TABLE IF NOT EXISTS pelanggan (
+CREATE TABLE pelanggan (
     id_pelanggan INT AUTO_INCREMENT PRIMARY KEY,
     nama_pelanggan VARCHAR(100) NOT NULL,
     telepon VARCHAR(20)
 );
 
---
-CREATE TABLE IF NOT EXISTS produk (
+CREATE TABLE produk (
     id_produk INT AUTO_INCREMENT PRIMARY KEY,
     nama_produk VARCHAR(100) NOT NULL,
     harga DECIMAL(12,2) NOT NULL,
     stok INT NOT NULL DEFAULT 0
 );
 
---
-CREATE TABLE IF NOT EXISTS transaksi (
+CREATE TABLE transaksi (
     id_transaksi INT PRIMARY KEY,
     tgl_transaksi DATETIME NOT NULL,
     id_pelanggan INT NOT NULL,
     total_bayar DECIMAL(12,2) DEFAULT 0,
-    FOREIGN KEY (id_pelanggan) REFERENCES pelanggan(id_pelanggan)
+    FOREIGN KEY (id_pelanggan) REFERENCES pelanggan(id_pelanggan) ON DELETE CASCADE
 );
 
---
-CREATE TABLE IF NOT EXISTS detail_transaksi (
+CREATE TABLE detail_transaksi (
     id_detail INT AUTO_INCREMENT PRIMARY KEY,
     id_transaksi INT NOT NULL,
     id_produk INT NOT NULL,
     jumlah INT NOT NULL,
     subtotal DECIMAL(12,2) NOT NULL,
-    FOREIGN KEY (id_transaksi) REFERENCES transaksi(id_transaksi),
-    FOREIGN KEY (id_produk) REFERENCES produk(id_produk)
+    FOREIGN KEY (id_transaksi) REFERENCES transaksi(id_transaksi) ON DELETE CASCADE,
+    FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE
 );
 
---
-CREATE TABLE IF NOT EXISTS log_stok (
+CREATE TABLE log_stok (
     id_log INT AUTO_INCREMENT PRIMARY KEY,
     id_produk INT NOT NULL,
     stok_lama INT NOT NULL,
     stok_baru INT NOT NULL,
     waktu DATETIME NOT NULL,
-    FOREIGN KEY (id_produk) REFERENCES produk(id_produk)
+    FOREIGN KEY (id_produk) REFERENCES produk(id_produk) ON DELETE CASCADE
 );
 
---
 INSERT INTO pelanggan (nama_pelanggan, telepon) VALUES
 ('Ahmad Fauzi', '081234567890'),
 ('Budi Santoso', '089876543210');
@@ -61,7 +56,9 @@ INSERT INTO produk (nama_produk, harga, stok) VALUES
 ('Mouse Wireless Logitech', 250000.00, 50),
 ('Keyboard Mechanical', 750000.00, 25);
 
---
+-- ========================================================
+-- STORED PROCEDURE: sp_proses_transaksi
+-- ========================================================
 DELIMITER //
 
 CREATE PROCEDURE sp_proses_transaksi (
@@ -86,21 +83,35 @@ END //
 
 DELIMITER ;
 
---
+-- ========================================================
+-- TRIGGER 1: trg_setelah_tambah_detail (Potong Stok & Tolak Jika Habis)
+-- ========================================================
 DELIMITER //
 
 CREATE TRIGGER trg_setelah_tambah_detail
 AFTER INSERT ON detail_transaksi
 FOR EACH ROW
 BEGIN
-    UPDATE produk
-    SET stok = stok - NEW.jumlah
-    WHERE id_produk = NEW.id_produk;
+    DECLARE v_stok_sekarang INT;
+
+    SELECT stok INTO v_stok_sekarang
+    FROM produk WHERE id_produk = NEW.id_produk;
+
+    IF v_stok_sekarang < NEW.jumlah THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'ERROR TRIGGER: Stok barang habis atau tidak mencukupi!';
+    ELSE
+        UPDATE produk
+        SET stok = stok - NEW.jumlah
+        WHERE id_produk = NEW.id_produk;
+    END IF;
 END //
 
 DELIMITER ;
 
----
+-- ========================================================
+-- TRIGGER 2: trg_audit_stok_produk (Catat Riwayat Perubahan Stok)
+-- ========================================================
 DELIMITER //
 
 CREATE TRIGGER trg_audit_stok_produk
