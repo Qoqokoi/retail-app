@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <title>POS Retail UTS</title>
+</head>
+<body>
+    <h2>Kasir Retail (Vercel API)</h2>
+    
+    <form id="formTransaksi">
+        <input type="number" id="id_transaksi" placeholder="ID Transaksi Baru" required>
+        <input type="number" id="id_pelanggan" placeholder="ID Pelanggan (1/2)" required>
+        <input type="number" id="id_produk" placeholder="ID Produk (Misal: 1)" required>
+        <input type="number" id="jumlah" placeholder="Jumlah Beli" required>
+        <button type="submit">Proses Transaksi</button>
+    </form>
+
+    <p id="pesanResponse"></p>
+
+    <script>
+        document.getElementById('formTransaksi').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                id_transaksi: document.getElementById('id_transaksi').value,
+                id_pelanggan: document.getElementById('id_pelanggan').value,
+                id_produk: document.getElementById('id_produk').value,
+                jumlah: document.getElementById('jumlah').value
+            };
+
+            const response = await fetch('/api/transaksi', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            document.getElementById('pesanResponse').innerText = result.message;
+        });
+    </script>
+</body>
+</html>
